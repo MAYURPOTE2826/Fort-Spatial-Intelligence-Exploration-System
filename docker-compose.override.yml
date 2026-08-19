@@ -1,0 +1,11 @@
+version: '3.8'
+
+# This file is used for local development overrides
+services:
+  backend:
+    # Use reload for FastAPI during dev
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    
+  frontend:
+    # Expose host for Vite dev server
+    command: ["npm", "run", "dev", "--", "--host"]

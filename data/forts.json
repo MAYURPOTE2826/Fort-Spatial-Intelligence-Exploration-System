@@ -1,0 +1,62 @@
+[
+    {
+        "name": "Rajgad",
+        "lat": 18.2458,
+        "lon": 73.6823,
+        "base_elevation": 1376
+    },
+    {
+        "name": "Torna",
+        "lat": 18.275,
+        "lon": 73.6219,
+        "base_elevation": 1403
+    },
+    {
+        "name": "Sinhagad",
+        "lat": 18.3663,
+        "lon": 73.7558,
+        "base_elevation": 1312
+    },
+    {
+        "name": "Purandar",
+        "lat": 18.2833,
+        "lon": 73.9748,
+        "base_elevation": 1387
+    },
+    {
+        "name": "Lohagad",
+        "lat": 18.7073,
+        "lon": 73.4764,
+        "base_elevation": 1033
+    },
+    {
+        "name": "Visapur",
+        "lat": 18.7153,
+        "lon": 73.4912,
+        "base_elevation": 1084
+    },
+    {
+        "name": "Raigad",
+        "lat": 18.2347,
+        "lon": 73.4464,
+        "base_elevation": 820
+    },
+    {
+        "name": "Pratapgad",
+        "lat": 17.9258,
+        "lon": 73.5786,
+        "base_elevation": 1080
+    },
+    {
+        "name": "Shivneri",
+        "lat": 19.1963,
+        "lon": 73.8569,
+        "base_elevation": 1066
+    },
+    {
+        "name": "Tikona",
+        "lat": 18.6322,
+        "lon": 73.5133,
+        "base_elevation": 1091
+    }
+]
