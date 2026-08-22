@@ -1,0 +1,155 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [73.6822, 18.2461]
+      },
+      "properties": {
+        "name": "Rajgad",
+        "marathi_name": "राजगड",
+        "elevation": 1376,
+        "district": "Pune",
+        "difficulty": "Hard",
+        "best_season": "Winter"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [73.6227, 18.2761]
+      },
+      "properties": {
+        "name": "Torna",
+        "marathi_name": "तोरणा",
+        "elevation": 1403,
+        "district": "Pune",
+        "difficulty": "Hard",
+        "best_season": "Winter"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [73.7559, 18.3663]
+      },
+      "properties": {
+        "name": "Sinhagad",
+        "marathi_name": "सिंहगड",
+        "elevation": 1312,
+        "district": "Pune",
+        "difficulty": "Moderate",
+        "best_season": "Monsoon"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [73.9750, 18.2833]
+      },
+      "properties": {
+        "name": "Purandar",
+        "marathi_name": "पुरंदर",
+        "elevation": 1387,
+        "district": "Pune",
+        "difficulty": "Moderate",
+        "best_season": "Winter"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [73.4750, 18.7075]
+      },
+      "properties": {
+        "name": "Lohagad",
+        "marathi_name": "लोहगड",
+        "elevation": 1033,
+        "district": "Pune",
+        "difficulty": "Easy",
+        "best_season": "Monsoon"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [73.4917, 18.7208]
+      },
+      "properties": {
+        "name": "Visapur",
+        "marathi_name": "विसापूर",
+        "elevation": 1084,
+        "district": "Pune",
+        "difficulty": "Moderate",
+        "best_season": "Monsoon"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [73.4464, 18.2347]
+      },
+      "properties": {
+        "name": "Raigad",
+        "marathi_name": "रायगड",
+        "elevation": 820,
+        "district": "Raigad",
+        "difficulty": "Moderate",
+        "best_season": "Winter"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [73.5786, 17.9258]
+      },
+      "properties": {
+        "name": "Pratapgad",
+        "marathi_name": "प्रतापगड",
+        "elevation": 1080,
+        "district": "Satara",
+        "difficulty": "Easy",
+        "best_season": "Winter"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [73.8744, 19.1975]
+      },
+      "properties": {
+        "name": "Shivneri",
+        "marathi_name": "शिवनेरी",
+        "elevation": 1060,
+        "district": "Pune",
+        "difficulty": "Easy",
+        "best_season": "Monsoon"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [73.5139, 18.6306]
+      },
+      "properties": {
+        "name": "Tikona",
+        "marathi_name": "तिकोना",
+        "elevation": 1091,
+        "district": "Pune",
+        "difficulty": "Easy",
+        "best_season": "Monsoon"
+      }
+    }
+  ]
+}

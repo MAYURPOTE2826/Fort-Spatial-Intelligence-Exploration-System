@@ -1,0 +1,11 @@
+name,marathi_name,latitude,longitude,elevation,district,difficulty,best_season,history,image_url,source
+Rajgad,राजगड,18.2461,73.6822,1376,Pune,Hard,Winter,Capital of Maratha empire under Shivaji Maharaj.,https://example.com/rajgad.jpg,Wikipedia
+Torna,तोरणा,18.2761,73.6227,1403,Pune,Hard,Winter,First fort captured by Shivaji Maharaj in 1646.,https://example.com/torna.jpg,Wikipedia
+Sinhagad,सिंहगड,18.3663,73.7559,1312,Pune,Moderate,Monsoon,Known for the Battle of Sinhagad in 1670.,https://example.com/sinhagad.jpg,Wikipedia
+Purandar,पुरंदर,18.2833,73.9750,1387,Pune,Moderate,Winter,Birthplace of Sambhaji Maharaj.,https://example.com/purandar.jpg,Wikipedia
+Lohagad,लोहगड,18.7075,73.4750,1033,Pune,Easy,Monsoon,One of the many forts of Chhatrapati Shivaji Maharaj.,https://example.com/lohagad.jpg,Wikipedia
+Visapur,विसापूर,18.7208,73.4917,1084,Pune,Moderate,Monsoon,Twin fort of Lohagad.,https://example.com/visapur.jpg,Wikipedia
+Raigad,रायगड,18.2347,73.4464,820,Raigad,Moderate,Winter,Capital of Maratha Empire.,https://example.com/raigad.jpg,Wikipedia
+Pratapgad,प्रतापगड,17.9258,73.5786,1080,Satara,Easy,Winter,Site of the Battle of Pratapgad.,https://example.com/pratapgad.jpg,Wikipedia
+Shivneri,शिवनेरी,19.1975,73.8744,1060,Pune,Easy,Monsoon,Birthplace of Chhatrapati Shivaji Maharaj.,https://example.com/shivneri.jpg,Wikipedia
+Tikona,तिकोना,18.6306,73.5139,1091,Pune,Easy,Monsoon,Also known as Vitandgad.,https://example.com/tikona.jpg,Wikipedia
