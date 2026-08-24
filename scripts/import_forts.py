@@ -4,6 +4,11 @@ import json
 import logging
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from dotenv import load_dotenv
+
+# Load environment variables from the root .env file
+env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(env_path)
 
 # Configure logging
 logging.basicConfig(
@@ -24,11 +29,11 @@ def get_db_connection():
     """Establish database connection."""
     try:
         conn = psycopg2.connect(
-            host=os.getenv("PGHOST", "localhost"),
-            port=os.getenv("PGPORT", "5432"),
-            user=os.getenv("PGUSER", "postgres"),
-            password=os.getenv("PGPASSWORD", "postgres"),
-            database=os.getenv("PGDATABASE", "fortsight_db")
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=os.getenv("POSTGRES_PORT", "5432"),
+            user=os.getenv("POSTGRES_USER", "postgres"),
+            password=os.getenv("POSTGRES_PASSWORD", "postgres"),
+            database=os.getenv("POSTGRES_DB", "fortsight")
         )
         return conn
     except Exception as e:
@@ -100,7 +105,6 @@ def import_forts(csv_filepath):
         return
 
     conn = get_db_connection()
-    create_table_if_not_exists(conn)
 
     inserted_count = 0
     duplicate_count = 0
@@ -131,12 +135,12 @@ def import_forts(csv_filepath):
                     # Insert data
                     insert_query = """
                         INSERT INTO forts 
-                        (name, marathi_name, latitude, longitude, elevation, district, difficulty, best_season, history, image_url, source)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        (name, marathi_name, geometry, elevation, district, difficulty, best_season, history, image_url, source)
+                        VALUES (%s, %s, ST_SetSRID(ST_MakePoint(%s, %s), 4326), %s, %s, %s, %s, %s, %s, %s)
                     """
                     try:
                         cur.execute(insert_query, (
-                            row['name'], row['marathi_name'], float(row['latitude']), float(row['longitude']),
+                            row['name'], row['marathi_name'], float(row['longitude']), float(row['latitude']),
                             int(row['elevation']), row['district'], row['difficulty'], row['best_season'],
                             row['history'], row['image_url'], row['source']
                         ))

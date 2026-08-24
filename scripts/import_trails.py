@@ -2,6 +2,11 @@ import os
 import csv
 import logging
 import psycopg2
+from dotenv import load_dotenv
+
+# Load environment variables from the root .env file
+env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(env_path)
 
 # Configure logging
 logging.basicConfig(
@@ -13,11 +18,11 @@ logger = logging.getLogger(__name__)
 def get_db_connection():
     try:
         conn = psycopg2.connect(
-            host=os.getenv("PGHOST", "localhost"),
-            port=os.getenv("PGPORT", "5432"),
-            user=os.getenv("PGUSER", "postgres"),
-            password=os.getenv("PGPASSWORD", "postgres"),
-            database=os.getenv("PGDATABASE", "fortsight_db")
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=os.getenv("POSTGRES_PORT", "5432"),
+            user=os.getenv("POSTGRES_USER", "postgres"),
+            password=os.getenv("POSTGRES_PASSWORD", "postgres"),
+            database=os.getenv("POSTGRES_DB", "fortsight")
         )
         return conn
     except Exception as e:
@@ -54,7 +59,6 @@ def import_trails(csv_filepath):
         return
 
     conn = get_db_connection()
-    create_table_if_not_exists(conn)
 
     inserted_count = 0
 
@@ -73,18 +77,19 @@ def import_trails(csv_filepath):
                     fort_id = fort[0]
 
                     # Check for duplicates
-                    cur.execute("SELECT id FROM trails WHERE fort_id = %s AND name = %s", (fort_id, row['name']))
+                    cur.execute("SELECT id FROM fort_trails WHERE fort_id = %s AND name = %s", (fort_id, row['name']))
                     if cur.fetchone():
                         logger.info(f"Trail '{row['name']}' already exists for {row['fort_name']}. Skipping.")
                         continue
 
                     # Insert data
                     insert_query = """
-                        INSERT INTO trails (fort_id, name, distance_km, estimated_time_mins, difficulty, geometry)
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        INSERT INTO fort_trails (fort_id, name, distance_km, estimated_time_hours, difficulty, geometry)
+                        VALUES (%s, %s, %s, %s, %s, ST_GeomFromText(%s, 4326))
                     """
+                    estimated_time_hours = int(row['estimated_time_mins']) / 60.0
                     cur.execute(insert_query, (
-                        fort_id, row['name'], float(row['distance_km']), int(row['estimated_time_mins']), 
+                        fort_id, row['name'], float(row['distance_km']), estimated_time_hours, 
                         row['difficulty'], row['geometry']
                     ))
                     inserted_count += 1

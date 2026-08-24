@@ -21,3 +21,18 @@ class VisibilityResultResponse(VisibilityResultBase):
 
     class Config:
         from_attributes = True
+
+class VisibilityRequest(BaseModel):
+    lat: float
+    lon: float
+    elevation: Optional[float] = None
+    radius_km: float = 50.0
+
+class VisibleFortResponse(BaseModel):
+    name: str
+    lat: float
+    lon: float
+    distance_km: float
+    bearing: float
+    is_visible: bool
+    elevation_angle: float

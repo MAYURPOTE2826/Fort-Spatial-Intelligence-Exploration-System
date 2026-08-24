@@ -1,80 +1,79 @@
-from fastapi import FastAPI
+import time
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import uuid
+
+from app.core.config import settings
 from app.core.database import engine, Base
-from app import models
+from app.core.logging import logger
+from app.utils.errors import AppError
+from app.api.v1.router import api_router
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize the database tables if they don't exist
     # Note: In production, we should use Alembic for migrations
     Base.metadata.create_all(bind=engine)
+    logger.info("Application startup: database tables created (if they didn't exist).")
     yield
     # Cleanup on shutdown
+    logger.info("Application shutdown.")
 
-app = FastAPI(title="FortSight AI Backend", lifespan=lifespan)
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok", "message": "FortSight AI Backend is running"}
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    version=settings.VERSION,
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
 
-from pydantic import BaseModel
-from typing import List, Optional
-from fastapi import Depends
-from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app import crud
-from app import los_engine
-import math
+# CORS Middleware
+if settings.BACKEND_CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.BACKEND_CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-class VisibilityRequest(BaseModel):
-    lat: float
-    lon: float
-    elevation: Optional[float] = None
-    radius_km: float = 50.0
-
-class VisibleFortResponse(BaseModel):
-    name: str
-    lat: float
-    lon: float
-    distance_km: float
-    bearing: float
-    is_visible: bool
-    elevation_angle: float
+# Request ID and Logging Middleware
+@app.middleware("http")
+async def request_middleware(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    start_time = time.time()
     
-@app.post("/api/visibility", response_model=List[VisibleFortResponse])
-def get_visible_forts(req: VisibilityRequest, db: Session = Depends(get_db)):
-    # 1. Find nearby forts via PostGIS
-    nearby_forts = crud.get_forts_within_radius(db, req.lat, req.lon, req.radius_km)
+    logger.info(f"Request started: {request.method} {request.url.path} - ID: {request_id}")
     
-    results = []
-    for fort in nearby_forts:
-        # Snap user elevation to DEM if not provided
-        if req.elevation is None:
-            user_elev = los_engine.extract_elevation_profile(req.lat, req.lon, req.lat, req.lon, 1)[2][0] + 2.0
-        else:
-            user_elev = req.elevation
-            
-        # 2. Calculate LOS
-        is_visible, distance, max_angle = los_engine.check_line_of_sight(
-            user_lat=req.lat,
-            user_lon=req.lon,
-            user_elevation=user_elev,
-            fort_lat=fort.lat,
-            fort_lon=fort.lon,
-            fort_elevation=fort["base_elevation"]
-        )
-        
-        bearing = los_engine.calculate_bearing(req.lat, req.lon, fort.lat, fort.lon)
-        
-        results.append(VisibleFortResponse(
-            name=fort["name"],
-            lat=fort.lat,
-            lon=fort.lon,
-            distance_km=distance / 1000.0,
-            bearing=bearing,
-            is_visible=is_visible,
-            elevation_angle=math.degrees(max_angle)
-        ))
-        
-    return results
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Process-Time"] = str(process_time)
+        logger.info(f"Request completed: {request.method} {request.url.path} - Status: {response.status_code} - ID: {request_id} - Time: {process_time:.4f}s")
+        return response
+    except Exception as e:
+        process_time = time.time() - start_time
+        logger.error(f"Request failed: {request.method} {request.url.path} - ID: {request_id} - Time: {process_time:.4f}s - Error: {str(e)}")
+        raise
 
+# Error Handler
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=exc.headers
+    )
+
+# Include API Router
+app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# Top-level redirect or health for root
+@app.get("/")
+def root():
+    return {"message": f"Welcome to {settings.PROJECT_NAME} API. Visit /docs for documentation."}
