@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 10
 
     DEM_S3_URL: str = "s3://copernicus-dem-30m/Copernicus_DSM_COG_10_N18_00_E073_00_DEM/Copernicus_DSM_COG_10_N18_00_E073_00_DEM.tif"
+    DEM_DATA_DIR: str = "data/dem"
     
     # Security
     SECRET_KEY: str = "a-very-secret-key-that-should-be-changed-in-production"
