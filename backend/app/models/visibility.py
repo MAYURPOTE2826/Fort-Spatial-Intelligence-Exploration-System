@@ -20,3 +20,12 @@ class VisibilityResult(Base):
 
     # Composite index for quick spatial + fort lookup might be useful, 
     # but individual indexes should suffice for most query planners.
+
+class VisibilityQueryCache(Base):
+    __tablename__ = "visibility_cache"
+    
+    cache_key = Column(String, primary_key=True, index=True)
+    # Storing the entire JSON response
+    response_payload = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)

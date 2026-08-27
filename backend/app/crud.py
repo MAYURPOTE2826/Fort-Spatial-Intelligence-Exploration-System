@@ -32,3 +32,38 @@ def get_forts_within_radius(db: Session, lat: float, lon: float, radius_km: floa
             "lon": row.lon
         })
     return forts
+
+def get_fort_by_id(db: Session, fort_id: str):
+    query = text("""
+        SELECT id, name, base_elevation, ST_X(location::geometry) as lon, ST_Y(location::geometry) as lat
+        FROM forts
+        WHERE id = :id
+    """)
+    result = db.execute(query, {"id": fort_id}).fetchone()
+    if result:
+        return {
+            "id": result.id,
+            "name": result.name,
+            "base_elevation": result.base_elevation,
+            "lat": result.lat,
+            "lon": result.lon
+        }
+    return None
+
+def get_forts_by_ids(db: Session, fort_ids: list[str]):
+    query = text("""
+        SELECT id, name, base_elevation, ST_X(location::geometry) as lon, ST_Y(location::geometry) as lat
+        FROM forts
+        WHERE id = ANY(:ids)
+    """)
+    result = db.execute(query, {"ids": fort_ids})
+    forts = []
+    for row in result:
+        forts.append({
+            "id": row.id,
+            "name": row.name,
+            "base_elevation": row.base_elevation,
+            "lat": row.lat,
+            "lon": row.lon
+        })
+    return forts

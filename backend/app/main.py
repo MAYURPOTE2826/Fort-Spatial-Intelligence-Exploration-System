@@ -5,6 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import uuid
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+from app.core.rate_limit import limiter
+
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.logging import logger
@@ -30,6 +35,9 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS Middleware
 if settings.BACKEND_CORS_ORIGINS:

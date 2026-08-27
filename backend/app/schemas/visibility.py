@@ -1,38 +1,53 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
-class VisibilityResultBase(BaseModel):
-    observer_lat: float
-    observer_lon: float
-    observer_elevation: float
-    visibility_status: str
-    visibility_score: float
-
-class VisibilityResultCreate(VisibilityResultBase):
-    fort_id: int
-    expires_at: datetime
-
-class VisibilityResultResponse(VisibilityResultBase):
-    id: int
-    fort_id: int
-    calculated_at: datetime
-    expires_at: datetime
-
-    class Config:
-        from_attributes = True
-
-class VisibilityRequest(BaseModel):
+class ObserverInfo(BaseModel):
     lat: float
     lon: float
     elevation: Optional[float] = None
-    radius_km: float = 50.0
+    heading: Optional[float] = None
+    fov: Optional[float] = None
+    radius_km: Optional[float] = None
 
-class VisibleFortResponse(BaseModel):
+class FortVisibilityItem(BaseModel):
+    id: str
     name: str
-    lat: float
-    lon: float
     distance_km: float
-    bearing: float
+    bearing_deg: float
+    direction: str
+    relative_angle: Optional[float] = None
+    visibility_score: float
+    visibility_status: str
+    elevation: float
+    elevation_difference: float
+    image_url: Optional[str] = None
+    obstruction_distance_km: Optional[float] = None
+    confidence: Optional[float] = None
+    explanation: Optional[str] = None
+
+class VisibilityResponse(BaseModel):
+    observer: ObserverInfo
+    visible_forts: List[FortVisibilityItem] = []
+    uncertain_forts: List[FortVisibilityItem] = []
+    blocked_forts: List[FortVisibilityItem] = []
+    calculation_time_ms: int
+
+class BetweenFortsRequest(BaseModel):
+    source_fort_id: str
+    target_fort_id: str
+
+class BuildNetworkRequest(BaseModel):
+    fort_ids: List[str]
+    
+class NetworkVisibilityEdge(BaseModel):
+    source_id: str
+    target_id: str
     is_visible: bool
-    elevation_angle: float
+    distance_km: float
+    visibility_score: float
+
+class VisibilityNetworkResponse(BaseModel):
+    nodes: List[str]
+    edges: List[NetworkVisibilityEdge]
+    calculation_time_ms: int
