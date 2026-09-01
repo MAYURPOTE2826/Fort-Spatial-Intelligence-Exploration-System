@@ -13,4 +13,7 @@ from app.schemas.rag import (
     ChatSessionCreate, ChatSessionResponse,
     ChatMessageCreate, ChatMessageResponse
 )
-from app.schemas.visibility import VisibilityResultCreate, VisibilityResultResponse
+from app.schemas.visibility import (
+    VisibilityResponse, BetweenFortsRequest, 
+    BuildNetworkRequest, VisibilityNetworkResponse
+)

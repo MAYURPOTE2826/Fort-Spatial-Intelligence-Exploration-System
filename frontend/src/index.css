@@ -2,10 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
+@layer base {
+  body {
+    @apply bg-terrain-900 text-slate-100;
+  }
+}
+
+/* Dark mode map tiles */
+.map-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
 }
