@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, Query
+from fastapi import APIRouter, Depends, Request, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.visibility import (
@@ -39,11 +39,21 @@ def get_visibility_between_forts(
         db=db, source_id=req.source_fort_id, target_id=req.target_fort_id
     )
 
-@router.post("/build-network", response_model=VisibilityNetworkResponse)
+@router.post("/build-network")
 @limiter.limit("2/minute")
 def build_visibility_network(
     request: Request,
     req: BuildNetworkRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    return VisibilityService.build_visibility_network(db=db, fort_ids=req.fort_ids)
+    return VisibilityService.build_visibility_network(
+        db=db, 
+        fort_ids=req.fort_ids, 
+        is_async=req.is_async if hasattr(req, 'is_async') else True,
+        background_tasks=background_tasks
+    )
+
+@router.get("/job/{job_id}")
+def get_job_status(job_id: str, db: Session = Depends(get_db)):
+    return VisibilityService.get_job_status(db=db, job_id=job_id)

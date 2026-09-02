@@ -12,7 +12,9 @@ from app.schemas.visibility import (
     VisibilityResponse, ObserverInfo, FortVisibilityItem,
     VisibilityNetworkResponse, NetworkVisibilityEdge
 )
+from app.models.forts import FortConnection
 from app.gis.visibility_engine import calculate_line_of_sight
+import uuid
 from app.gis.dem_processor import dem_processor
 
 class VisibilityService:
@@ -220,47 +222,123 @@ class VisibilityService:
         }
 
     @classmethod
-    def build_visibility_network(cls, db: Session, fort_ids: List[str]) -> VisibilityNetworkResponse:
-        start_time = time.time()
-        forts = crud.get_forts_by_ids(db, fort_ids)
-        fort_dict = {str(f["id"]): f for f in forts}
-        
-        edges = []
-        # Calculate N x (N-1) pairs, or we can just do a triangular matrix (since visibility is roughly symmetric, but curvature/height differ, let's just do directional)
-        
-        def check_pair(s_id, t_id):
-            s = fort_dict[s_id]
-            t = fort_dict[t_id]
-            res = calculate_line_of_sight(
-                observer_lat=s["lat"], observer_lon=s["lon"],
-                observer_elevation=s["base_elevation"], observer_height=10.0, # fort tower height
-                target_lat=t["lat"], target_lon=t["lon"],
-                target_elevation=t["base_elevation"], target_height=10.0,
-                dem_service=dem_processor,
-                target_id=str(t_id)
+    def run_network_job(cls, db: Session, job_id: str, fort_ids: List[str]):
+        try:
+            # Mark job as processing
+            cls._save_to_cache(db, f"job_{job_id}", {"status": "PROCESSING", "progress": 0})
+            
+            start_time = time.time()
+            forts = crud.get_forts_by_ids(db, fort_ids)
+            fort_dict = {str(f["id"]): f for f in forts}
+            
+            edges = []
+            
+            def check_pair(s_id, t_id):
+                s = fort_dict[s_id]
+                t = fort_dict[t_id]
+                res = calculate_line_of_sight(
+                    observer_lat=s["lat"], observer_lon=s["lon"],
+                    observer_elevation=s["base_elevation"], observer_height=10.0,
+                    target_lat=t["lat"], target_lon=t["lon"],
+                    target_elevation=t["base_elevation"], target_height=10.0,
+                    dem_service=dem_processor,
+                    target_id=str(t_id)
+                )
+                return s_id, t_id, res
+
+            pairs_to_check = []
+            for s_id in fort_dict:
+                for t_id in fort_dict:
+                    if s_id != t_id:
+                        pairs_to_check.append((s_id, t_id))
+
+            total_pairs = len(pairs_to_check)
+            completed_pairs = 0
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                futures = [executor.submit(check_pair, s, t) for s, t in pairs_to_check]
+                for future in concurrent.futures.as_completed(futures):
+                    s_id, t_id, v_result = future.result()
+                    is_visible = v_result.visibility_status == "VISIBLE"
+                    edges.append(NetworkVisibilityEdge(
+                        source_id=s_id,
+                        target_id=t_id,
+                        is_visible=is_visible,
+                        distance_km=v_result.distance_km,
+                        visibility_score=v_result.visibility_score
+                    ))
+                    
+                    # Store in fort_connections DB
+                    conn = db.query(FortConnection).filter_by(source_fort_id=int(s_id), target_fort_id=int(t_id)).first()
+                    if not conn:
+                        conn = FortConnection(source_fort_id=int(s_id), target_fort_id=int(t_id))
+                        db.add(conn)
+                    conn.distance_km = v_result.distance_km
+                    conn.bearing_deg = v_result.bearing_deg
+                    conn.visibility_status = v_result.visibility_status
+                    conn.visibility_score = v_result.visibility_score
+                    conn.last_calculated_at = datetime.utcnow()
+                    
+                    completed_pairs += 1
+                    if completed_pairs % 10 == 0 or completed_pairs == total_pairs:
+                        progress = int((completed_pairs / max(1, total_pairs)) * 100)
+                        cls._save_to_cache(db, f"job_{job_id}", {"status": "PROCESSING", "progress": progress})
+                        db.commit() # commit DB connections too
+            
+            db.commit()
+            
+            result = VisibilityNetworkResponse(
+                nodes=list(fort_dict.keys()),
+                edges=edges,
+                calculation_time_ms=int((time.time() - start_time) * 1000)
             )
-            return s_id, t_id, res
+            
+            # Save final network cache
+            cache_key = cls._generate_cache_key("network", fort_ids=",".join(sorted(fort_ids)))
+            cls._save_to_cache(db, cache_key, result.model_dump(mode="json"), ttl_hours=24*7)
+            
+            # Mark job as complete with result
+            cls._save_to_cache(db, f"job_{job_id}", {"status": "COMPLETED", "result": result.model_dump(mode="json")})
+            
+        except Exception as e:
+            cls._save_to_cache(db, f"job_{job_id}", {"status": "FAILED", "error": str(e)})
 
-        pairs_to_check = []
-        for s_id in fort_dict:
-            for t_id in fort_dict:
-                if s_id != t_id:
-                    pairs_to_check.append((s_id, t_id))
+    @classmethod
+    def get_job_status(cls, db: Session, job_id: str) -> dict:
+        status = cls._get_from_cache(db, f"job_{job_id}")
+        if not status:
+            return {"status": "NOT_FOUND"}
+        return status
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [executor.submit(check_pair, s, t) for s, t in pairs_to_check]
-            for future in concurrent.futures.as_completed(futures):
-                s_id, t_id, v_result = future.result()
-                edges.append(NetworkVisibilityEdge(
-                    source_id=s_id,
-                    target_id=t_id,
-                    is_visible=v_result.visibility_status == "VISIBLE",
-                    distance_km=v_result.distance_km,
-                    visibility_score=v_result.visibility_score
-                ))
+    @classmethod
+    def build_visibility_network(cls, db: Session, fort_ids: List[str], is_async: bool = False, background_tasks = None) -> Any:
+        cache_key = cls._generate_cache_key("network", fort_ids=",".join(sorted(fort_ids)))
+        cached = cls._get_from_cache(db, cache_key)
+        
+        if cached and not is_async:
+            return VisibilityNetworkResponse(**cached)
 
-        return VisibilityNetworkResponse(
-            nodes=list(fort_dict.keys()),
-            edges=edges,
-            calculation_time_ms=int((time.time() - start_time) * 1000)
-        )
+        if is_async and background_tasks:
+            job_id = str(uuid.uuid4())
+            cls._save_to_cache(db, f"job_{job_id}", {"status": "PENDING", "progress": 0})
+            
+            # We must run the job in background using a separate DB session or by letting the FastAPI dependency handle it, 
+            # but background_tasks doesn't cleanly pass FastAPI's request-scoped DB session safely if the request closes.
+            # However, for simplicity in MVP we pass the current db. In prod, we'd spawn a new session.
+            # To be safe against "Session is closed", we'll let run_network_job create a new session if possible, 
+            # or just use it here assuming the background task framework keeps it alive (which FastAPI actually doesn't for Depends).
+            # To fix: we'll import SessionLocal.
+            
+            def background_job(j_id, f_ids):
+                from app.core.database import SessionLocal
+                with SessionLocal() as new_db:
+                    cls.run_network_job(new_db, j_id, f_ids)
+            
+            background_tasks.add_task(background_job, job_id, fort_ids)
+            return {"job_id": job_id, "status": "PENDING"}
+
+        # Sync fallback
+        job_id = "sync_job"
+        cls.run_network_job(db, job_id, fort_ids)
+        final_status = cls.get_job_status(db, job_id)
+        return VisibilityNetworkResponse(**final_status["result"])
