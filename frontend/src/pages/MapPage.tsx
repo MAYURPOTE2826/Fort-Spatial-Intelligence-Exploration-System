@@ -2,30 +2,62 @@ import React, { useState } from 'react';
 import { Map } from '../components/Map';
 import { LocationPanel } from '../components/LocationPanel';
 import { FortList } from '../components/FortList';
+import { DevLocationPanel } from '../components/DevLocationPanel';
+import { PermissionDialog } from '../components/PermissionDialog';
 import { useLocation } from '../hooks/useLocation';
+import { useHeading } from '../hooks/useHeading';
 import { useForts } from '../hooks/useForts';
 import { useVisibility } from '../hooks/useVisibility';
 import { Fort } from '../types/fort';
 
 export const MapPage: React.FC = () => {
-  const { location, error: locationError } = useLocation();
+  const { 
+    location, 
+    error: locationError, 
+    permissionStatus: locationPermission,
+    requestPermission: requestLocationPermission,
+    setManualLocation 
+  } = useLocation();
+
+  const {
+    headingData,
+    permissionStatus: headingPermission,
+    requestPermission: requestHeadingPermission,
+    setManualHeading
+  } = useHeading();
+
   const { data: forts, isLoading: isLoadingForts } = useForts();
+  
+  // Use combined location and heading for visibility if needed later
   const { data: visibilityData } = useVisibility(location);
 
   const [selectedFort, setSelectedFort] = useState<Fort | null>(null);
+  const [showDevPanel, setShowDevPanel] = useState(import.meta.env.DEV || false);
+  const [dismissPermissions, setDismissPermissions] = useState(false);
 
   const handleFortClick = (fort: Fort) => {
     setSelectedFort(fort);
-    // Could route to details page or show slide-over
     console.log('Selected fort:', fort.name);
   };
 
   return (
     <div className="flex flex-col h-screen w-full bg-terrain-900 text-slate-100 overflow-hidden relative">
+      
+      {!dismissPermissions && (
+        <PermissionDialog
+          locationStatus={locationPermission}
+          headingStatus={headingPermission}
+          onRequestLocation={requestLocationPermission}
+          onRequestHeading={requestHeadingPermission}
+          onDismiss={() => setDismissPermissions(true)}
+        />
+      )}
+
       {/* Map takes full background */}
       <div className="absolute inset-0 z-0">
         <Map 
           location={location} 
+          headingData={headingData}
           forts={forts} 
           visibilityData={visibilityData} 
           onFortClick={handleFortClick} 
@@ -38,12 +70,25 @@ export const MapPage: React.FC = () => {
         {/* Top layer (Location etc) */}
         <div className="flex justify-between items-start pointer-events-auto w-full">
           <div className="w-full sm:w-80 max-w-[65vw] sm:max-w-none">
-            <LocationPanel location={location} error={locationError} />
+            <LocationPanel location={location} headingData={headingData} error={locationError} />
           </div>
           
-          <div className="bg-terrain-800 p-2 sm:p-3 rounded-lg shadow-lg border border-terrain-700 ml-2 shrink-0 text-right sm:text-left">
-            <h1 className="text-base sm:text-xl font-bold text-emerald-500">FortSight</h1>
-            <p className="text-[9px] sm:text-xs text-slate-400">Tactical Map View</p>
+          <div className="flex flex-col gap-2 items-end">
+            <div className="bg-terrain-800 p-2 sm:p-3 rounded-lg shadow-lg border border-terrain-700 ml-2 shrink-0 text-right sm:text-left cursor-pointer pointer-events-auto" onClick={() => setShowDevPanel(!showDevPanel)}>
+              <h1 className="text-base sm:text-xl font-bold text-emerald-500">FortSight</h1>
+              <p className="text-[9px] sm:text-xs text-slate-400">Tactical Map View</p>
+            </div>
+            
+            {showDevPanel && (
+              <div className="w-64 max-w-full">
+                <DevLocationPanel 
+                  location={location}
+                  headingData={headingData}
+                  setManualLocation={setManualLocation}
+                  setManualHeading={setManualHeading}
+                />
+              </div>
+            )}
           </div>
         </div>
 
