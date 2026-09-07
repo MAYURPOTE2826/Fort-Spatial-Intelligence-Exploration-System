@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     routes,
     chat,
     auth,
+    ml,
 )
 
 api_router = APIRouter()
@@ -18,3 +19,4 @@ api_router.include_router(visibility.router, prefix="/visibility", tags=["visibi
 api_router.include_router(terrain.router, prefix="/terrain", tags=["terrain"])
 api_router.include_router(routes.router, prefix="/routes", tags=["routes"])
 api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
+api_router.include_router(ml.router, prefix="/ml", tags=["machine-learning"])
