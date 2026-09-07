@@ -12,3 +12,7 @@ python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
 slowapi
+pgvector
+sentence-transformers
+google-genai
+langchain-text-splitters

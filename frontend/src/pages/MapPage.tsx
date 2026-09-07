@@ -4,12 +4,14 @@ import { LocationPanel } from '../components/LocationPanel';
 import { FortList } from '../components/FortList';
 import { DevLocationPanel } from '../components/DevLocationPanel';
 import { PermissionDialog } from '../components/PermissionDialog';
+import { ChatBot } from '../components/ChatBot';
 import { useLocation } from '../hooks/useLocation';
 import { useHeading } from '../hooks/useHeading';
 import { useForts } from '../hooks/useForts';
 import { useVisibility } from '../hooks/useVisibility';
 import { Fort } from '../types/fort';
 import { useNavigate } from 'react-router-dom';
+import { MessageSquare } from 'lucide-react';
 
 export const MapPage: React.FC = () => {
   const { 
@@ -35,6 +37,7 @@ export const MapPage: React.FC = () => {
   const [selectedFort, setSelectedFort] = useState<Fort | null>(null);
   const [showDevPanel, setShowDevPanel] = useState(import.meta.env.DEV || false);
   const [dismissPermissions, setDismissPermissions] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const navigate = useNavigate();
 
   const handleFortClick = (fort: Fort) => {
@@ -104,6 +107,27 @@ export const MapPage: React.FC = () => {
         </div>
         
       </div>
+
+      {/* Chat Bot Overlay */}
+      {showChat && (
+        <div className="absolute inset-y-0 right-0 z-50 w-full sm:w-[450px] p-4 flex flex-col justify-end sm:justify-start pointer-events-auto mt-16">
+          <ChatBot 
+            onClose={() => setShowChat(false)} 
+            latitude={location?.lat}
+            longitude={location?.lng}
+          />
+        </div>
+      )}
+
+      {/* Chat Bot Toggle Button */}
+      {!showChat && (
+        <button
+          onClick={() => setShowChat(true)}
+          className="absolute bottom-6 right-6 z-40 bg-gradient-to-r from-orange-500 to-amber-500 p-4 rounded-full shadow-lg shadow-orange-500/30 text-white hover:scale-110 active:scale-95 transition-transform pointer-events-auto"
+        >
+          <MessageSquare className="w-6 h-6" />
+        </button>
+      )}
 
       {/* Slide-over removed, we now navigate to FortDetailsPage */}
     </div>
