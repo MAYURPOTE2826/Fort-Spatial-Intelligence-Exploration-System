@@ -1,83 +1,96 @@
 version: '3.8'
 
 services:
-  db:
+  frontend:
     build:
-      context: ./db
+      context: ./frontend
       dockerfile: Dockerfile
-    container_name: fortsight_db
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: always
+    networks:
+      - fortsight_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=production
+      - WORKERS_PER_CORE=1
+      # Other environment variables should be passed via .env file or deployment environment
+    env_file:
+      - .env
+    restart: always
+    networks:
+      - fortsight_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  db:
+    image: ankane/pgvector:v0.5.1
+    environment:
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-fortsight}
-    ports:
-      - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - fortsight_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${POSTGRES_DB:-fortsight}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: fortsight_redis
-    ports:
-      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
     volumes:
-      - redisdata:/data
-
-  backend:
-    build: 
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: fortsight_backend
-    environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-fortsight}
-      - REDIS_URL=redis://redis:6379/0
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
+      - redis_data:/data
+    restart: always
+    networks:
+      - fortsight_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: fortsight_frontend
-    environment:
-      - VITE_API_URL=http://localhost:8000
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    depends_on:
-      - backend
-
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: fortsight_pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@fortsight.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
-    ports:
-      - "5050:80"
-    depends_on:
-      db:
-        condition: service_healthy
-
 volumes:
-  pgdata:
-  redisdata:
+  postgres_data:
+  redis_data:
+
+networks:
+  fortsight_network:
+    driver: bridge

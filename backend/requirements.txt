@@ -19,4 +19,4 @@ langchain-text-splitters
 pytest
 pytest-cov
 httpx
-
+gunicorn

@@ -342,3 +342,5 @@ class VisibilityService:
         cls.run_network_job(db, job_id, fort_ids)
         final_status = cls.get_job_status(db, job_id)
         return VisibilityNetworkResponse(**final_status["result"])
+
+visibility_service = VisibilityService()
