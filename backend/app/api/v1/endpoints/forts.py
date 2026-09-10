@@ -1,191 +1,285 @@
-from fastapi import APIRouter, HTTPException
-from typing import Any
+"""
+Forts API endpoints — real database-backed implementation.
+
+All data is served from the PostgreSQL/PostGIS database.
+Mock data has been removed. Use `scripts/seed_forts.py` to load initial data.
+"""
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from sqlalchemy import text, or_, func
+from typing import Any, Optional, List
+from app.core.database import get_db
+from app.models.forts import Fort, FortViewpoint, FortStructure, FortTrail, FortConnection
 
 router = APIRouter()
 
-MOCK_FORTS_DETAILS = {
-    1: {
-        "id": 1,
-        "name": "Sinhagad Fort",
-        "marathi_name": "सिंहगड",
-        "latitude": 18.3663,
-        "longitude": 73.7559,
-        "elevation": 1312,
-        "district": "Pune",
-        "difficulty": "Moderate",
-        "best_season": "Monsoon / Winter",
-        "description": "Sinhagad is a hill fortress located at around 30 km southwest of the city of Pune, India. Some of the information available at this fort suggests that the fort could have been built 2000 years ago. The caves and the carvings in the Kaundinyeshwar temple stand as proofs for the same.",
-        "history": "Previously known as Kondhana, the fort had been the site of many important battles, most notably the Battle of Sinhagad in 1670. Tanaji Malusare, a general of Chhatrapati Shivaji Maharaj, scaled the steep cliff using a monitor lizard (ghorpad) and recaptured the fort.",
-        "image_url": "https://upload.wikimedia.org/wikipedia/commons/4/4e/Sinhagad_fort_Pune.jpg",
-        "source": "Wikipedia",
-        "architectural_style": "Yadava / Maratha Architecture",
-        "built_by": "Kaundinya Rishi (Legend) / Yadavas",
-        "interesting_facts": [
-            "The fort was captured by Tanaji Malusare in 1670.",
-            "Contains the memorial (Samadhi) of Tanaji Malusare.",
-            "Has the tomb of Rajaram I, the younger son of Shivaji Maharaj.",
-            "Famous for its 'Pitla Bhakri' and 'Kanda Bhaji' served by locals."
-        ]
+
+def _fort_to_dict(fort: Fort) -> dict:
+    """Serialize a Fort ORM object to a response dict, extracting geometry as lat/lon."""
+    # Extract lat/lon from PostGIS geometry via SQL scalar
+    return {
+        "id": fort.id,
+        "name": fort.name,
+        "marathi_name": fort.marathi_name,
+        "description": fort.description,
+        "elevation": fort.elevation,
+        "district": fort.district,
+        "difficulty": fort.difficulty,
+        "best_season": fort.best_season,
+        "history": fort.history,
+        "image_url": fort.image_url,
+        "source": fort.source,
+        # geometry will be resolved by caller using raw SQL
     }
-}
-
-MOCK_STRUCTURES = {
-    1: [
-        {
-            "id": 101,
-            "name": "Pune Darwaza",
-            "type": "gate",
-            "description": "The main entrance to the fort from the Pune side.",
-            "historical_significance": "Historically the most heavily guarded entrance.",
-            "latitude": 18.368,
-            "longitude": 73.757
-        },
-        {
-            "id": 102,
-            "name": "Kalyan Darwaza",
-            "type": "gate",
-            "description": "Entrance from the Kalyan village side, often used for trekking.",
-            "historical_significance": "Tanaji Malusare's forces are believed to have entered from a steep cliff near here.",
-            "latitude": 18.364,
-            "longitude": 73.754
-        },
-        {
-            "id": 103,
-            "name": "Dev Taki",
-            "type": "water tank",
-            "description": "A fresh water tank providing cold, sweet water year-round.",
-            "historical_significance": "Served as the primary drinking water source for the garrison.",
-            "latitude": 18.366,
-            "longitude": 73.755
-        },
-        {
-            "id": 104,
-            "name": "Tanaji Samadhi",
-            "type": "memorial",
-            "description": "A memorial dedicated to the brave Maratha commander Tanaji Malusare.",
-            "historical_significance": "Marks the place where he died fighting.",
-            "latitude": 18.365,
-            "longitude": 73.756
-        }
-    ]
-}
-
-MOCK_VIEWPOINTS = {
-    1: [
-        {
-            "id": 201,
-            "name": "Zunjar Machi",
-            "direction": "South",
-            "visible_features": ["Khadakwasla Dam", "Torna Fort (on clear days)"],
-            "difficulty": "Easy",
-            "time_to_visit": "15 mins from center",
-            "latitude": 18.363,
-            "longitude": 73.755
-        },
-        {
-            "id": 202,
-            "name": "Wind Point (Hawa Point)",
-            "direction": "West",
-            "visible_features": ["Sahyadri Ranges", "Sunset"],
-            "difficulty": "Easy",
-            "time_to_visit": "10 mins from center",
-            "latitude": 18.365,
-            "longitude": 73.753
-        }
-    ]
-}
-
-MOCK_TRAILS = {
-    1: [
-        {
-            "id": 301,
-            "name": "Atekar Vasti to Kalyan Darwaza",
-            "start_point": "Atekar Vasti",
-            "end_point": "Kalyan Darwaza",
-            "distance_km": 2.5,
-            "estimated_time_hours": 1.5,
-            "difficulty": "Moderate",
-            "elevation_gain": 600,
-            "waypoints": [
-                [18.355, 73.752],
-                [18.360, 73.753],
-                [18.364, 73.754]
-            ]
-        }
-    ]
-}
-
-MOCK_CONNECTIONS = {
-    1: [
-        {
-            "target_fort_id": 2,
-            "target_fort_name": "Torna Fort",
-            "distance_km": 14.5,
-            "bearing_deg": 215,
-            "historical_connection": "Both forts were key in Shivaji Maharaj's early conquests."
-        },
-        {
-            "target_fort_id": 3,
-            "target_fort_name": "Rajgad Fort",
-            "distance_km": 18.0,
-            "bearing_deg": 190,
-            "historical_connection": "Rajgad was the first capital, heavily reliant on Sinhagad for defense."
-        }
-    ]
-}
 
 
 @router.get("/")
-def get_forts() -> Any:
-    """Retrieve all forts overview."""
+def get_forts(
+    db: Session = Depends(get_db),
+    search: Optional[str] = Query(None, description="Search by name or Marathi name"),
+    district: Optional[str] = Query(None, description="Filter by district"),
+    difficulty: Optional[str] = Query(None, description="Filter by difficulty"),
+    min_elevation: Optional[float] = Query(None, description="Minimum elevation in meters"),
+    max_elevation: Optional[float] = Query(None, description="Maximum elevation in meters"),
+    sort_by: str = Query("name", description="Sort field: name | elevation | difficulty"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(50, ge=1, le=200, description="Items per page"),
+) -> Any:
+    """Retrieve forts list with optional search, filtering and sorting."""
+    query_sql = """
+        SELECT
+            id, name, marathi_name, description, elevation,
+            district, difficulty, best_season, history, image_url, source,
+            ST_Y(geometry::geometry) AS latitude,
+            ST_X(geometry::geometry) AS longitude
+        FROM forts
+        WHERE 1=1
+    """
+    params: dict = {}
+
+    if search:
+        query_sql += " AND (name ILIKE :search OR marathi_name ILIKE :search)"
+        params["search"] = f"%{search}%"
+    if district:
+        query_sql += " AND district ILIKE :district"
+        params["district"] = f"%{district}%"
+    if difficulty:
+        query_sql += " AND difficulty ILIKE :difficulty"
+        params["difficulty"] = f"%{difficulty}%"
+    if min_elevation is not None:
+        query_sql += " AND elevation >= :min_elev"
+        params["min_elev"] = min_elevation
+    if max_elevation is not None:
+        query_sql += " AND elevation <= :max_elev"
+        params["max_elev"] = max_elevation
+
+    # Sorting — whitelist to prevent SQL injection
+    sort_map = {"name": "name", "elevation": "elevation DESC NULLS LAST", "difficulty": "difficulty"}
+    order_clause = sort_map.get(sort_by, "name")
+    query_sql += f" ORDER BY {order_clause}"
+
+    # Count total for pagination
+    count_sql = f"SELECT COUNT(*) FROM ({query_sql}) AS sub"
+    total = db.execute(text(count_sql), params).scalar() or 0
+
+    # Apply pagination
+    offset = (page - 1) * page_size
+    query_sql += " LIMIT :limit OFFSET :offset"
+    params["limit"] = page_size
+    params["offset"] = offset
+
+    rows = db.execute(text(query_sql), params).fetchall()
+
     forts_list = []
-    for f_id, data in MOCK_FORTS_DETAILS.items():
+    for row in rows:
         forts_list.append({
-            "id": data["id"],
-            "name": data["name"],
-            "marathi_name": data["marathi_name"],
-            "latitude": data["latitude"],
-            "longitude": data["longitude"],
-            "description": data["description"]
+            "id": row.id,
+            "name": row.name,
+            "marathi_name": row.marathi_name,
+            "description": row.description,
+            "elevation": row.elevation,
+            "district": row.district,
+            "difficulty": row.difficulty,
+            "best_season": row.best_season,
+            "history": row.history,
+            "image_url": row.image_url,
+            "source": row.source,
+            "latitude": row.latitude,
+            "longitude": row.longitude,
         })
-    # Add dummy fallbacks for listing if they are not fully detailed
-    if len(forts_list) < 3:
-        forts_list.append({"id": 2, "name": "Torna Fort", "latitude": 18.2778, "longitude": 73.6217, "description": "The first fort captured by Shivaji Maharaj."})
-        forts_list.append({"id": 3, "name": "Rajgad Fort", "latitude": 18.2472, "longitude": 73.6822, "description": "The capital of the Maratha Empire."})
 
-    return {"items": forts_list, "total": len(forts_list)}
-
-@router.get("/{fort_id}")
-def get_fort(fort_id: int) -> Any:
-    """Get fort details by ID."""
-    if fort_id in MOCK_FORTS_DETAILS:
-        return MOCK_FORTS_DETAILS[fort_id]
-    
-    # Fallback mock for others
     return {
-        "id": fort_id,
-        "name": f"Mock Fort {fort_id}",
-        "latitude": 18.5,
-        "longitude": 73.8,
-        "description": "Details not available in mock data."
+        "items": forts_list,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pages": max(1, -(-total // page_size)),  # ceiling division
     }
 
+
+@router.get("/{fort_id}")
+def get_fort(fort_id: int, db: Session = Depends(get_db)) -> Any:
+    """Get fort details by ID."""
+    row = db.execute(text("""
+        SELECT
+            id, name, marathi_name, description, elevation,
+            district, difficulty, best_season, history, image_url, source,
+            ST_Y(geometry::geometry) AS latitude,
+            ST_X(geometry::geometry) AS longitude
+        FROM forts
+        WHERE id = :id
+    """), {"id": fort_id}).fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Fort with id={fort_id} not found")
+
+    return {
+        "id": row.id,
+        "name": row.name,
+        "marathi_name": row.marathi_name,
+        "description": row.description,
+        "elevation": row.elevation,
+        "district": row.district,
+        "difficulty": row.difficulty,
+        "best_season": row.best_season,
+        "history": row.history,
+        "image_url": row.image_url,
+        "source": row.source,
+        "latitude": row.latitude,
+        "longitude": row.longitude,
+    }
+
+
 @router.get("/{fort_id}/structures")
-def get_fort_structures(fort_id: int) -> Any:
+def get_fort_structures(fort_id: int, db: Session = Depends(get_db)) -> Any:
     """Get internal structures of a fort."""
-    return {"items": MOCK_STRUCTURES.get(fort_id, [])}
+    # Verify fort exists
+    fort = db.query(Fort).filter(Fort.id == fort_id).first()
+    if not fort:
+        raise HTTPException(status_code=404, detail=f"Fort with id={fort_id} not found")
+
+    rows = db.execute(text("""
+        SELECT
+            id, fort_id, name, type, description,
+            ST_Y(geometry::geometry) AS latitude,
+            ST_X(geometry::geometry) AS longitude
+        FROM fort_structures
+        WHERE fort_id = :fort_id
+        ORDER BY name
+    """), {"fort_id": fort_id}).fetchall()
+
+    items = []
+    for row in rows:
+        items.append({
+            "id": row.id,
+            "fort_id": row.fort_id,
+            "name": row.name,
+            "type": row.type,
+            "description": row.description,
+            "latitude": row.latitude,
+            "longitude": row.longitude,
+        })
+    return {"items": items, "total": len(items)}
+
 
 @router.get("/{fort_id}/viewpoints")
-def get_fort_viewpoints(fort_id: int) -> Any:
+def get_fort_viewpoints(fort_id: int, db: Session = Depends(get_db)) -> Any:
     """Get viewpoints of a fort."""
-    return {"items": MOCK_VIEWPOINTS.get(fort_id, [])}
+    fort = db.query(Fort).filter(Fort.id == fort_id).first()
+    if not fort:
+        raise HTTPException(status_code=404, detail=f"Fort with id={fort_id} not found")
+
+    rows = db.execute(text("""
+        SELECT
+            id, fort_id, name, type, elevation, description,
+            ST_Y(geometry::geometry) AS latitude,
+            ST_X(geometry::geometry) AS longitude
+        FROM fort_viewpoints
+        WHERE fort_id = :fort_id
+        ORDER BY name
+    """), {"fort_id": fort_id}).fetchall()
+
+    items = []
+    for row in rows:
+        items.append({
+            "id": row.id,
+            "fort_id": row.fort_id,
+            "name": row.name,
+            "type": row.type,
+            "elevation": row.elevation,
+            "description": row.description,
+            "latitude": row.latitude,
+            "longitude": row.longitude,
+        })
+    return {"items": items, "total": len(items)}
+
 
 @router.get("/{fort_id}/trails")
-def get_fort_trails(fort_id: int) -> Any:
-    """Get trails leading to/around a fort."""
-    return {"items": MOCK_TRAILS.get(fort_id, [])}
+def get_fort_trails(fort_id: int, db: Session = Depends(get_db)) -> Any:
+    """Get trails for a fort."""
+    fort = db.query(Fort).filter(Fort.id == fort_id).first()
+    if not fort:
+        raise HTTPException(status_code=404, detail=f"Fort with id={fort_id} not found")
+
+    rows = db.execute(text("""
+        SELECT
+            id, fort_id, name, difficulty,
+            distance_km, estimated_time_hours,
+            ST_AsGeoJSON(geometry) AS geometry_geojson
+        FROM fort_trails
+        WHERE fort_id = :fort_id
+        ORDER BY name
+    """), {"fort_id": fort_id}).fetchall()
+
+    items = []
+    for row in rows:
+        items.append({
+            "id": row.id,
+            "fort_id": row.fort_id,
+            "name": row.name,
+            "difficulty": row.difficulty,
+            "distance_km": row.distance_km,
+            "estimated_time_hours": row.estimated_time_hours,
+            "geometry": row.geometry_geojson,  # GeoJSON LineString string
+        })
+    return {"items": items, "total": len(items)}
+
 
 @router.get("/{fort_id}/connections")
-def get_fort_connections(fort_id: int) -> Any:
-    """Get connected/related forts."""
-    return {"items": MOCK_CONNECTIONS.get(fort_id, [])}
+def get_fort_connections(fort_id: int, db: Session = Depends(get_db)) -> Any:
+    """Get pre-calculated visibility connections for a fort."""
+    fort = db.query(Fort).filter(Fort.id == fort_id).first()
+    if not fort:
+        raise HTTPException(status_code=404, detail=f"Fort with id={fort_id} not found")
+
+    rows = db.execute(text("""
+        SELECT
+            fc.source_fort_id,
+            fc.target_fort_id,
+            f.name AS target_fort_name,
+            f.marathi_name AS target_fort_marathi_name,
+            fc.distance_km,
+            fc.bearing_deg,
+            fc.visibility_status,
+            fc.visibility_score,
+            fc.last_calculated_at
+        FROM fort_connections fc
+        JOIN forts f ON f.id = fc.target_fort_id
+        WHERE fc.source_fort_id = :fort_id
+        ORDER BY fc.distance_km
+    """), {"fort_id": fort_id}).fetchall()
+
+    items = []
+    for row in rows:
+        items.append({
+            "source_fort_id": row.source_fort_id,
+            "target_fort_id": row.target_fort_id,
+            "target_fort_name": row.target_fort_name,
+            "target_fort_marathi_name": row.target_fort_marathi_name,
+            "distance_km": row.distance_km,
+            "bearing_deg": row.bearing_deg,
+            "visibility_status": row.visibility_status,
+            "visibility_score": row.visibility_score,
+            "last_calculated_at": row.last_calculated_at.isoformat() if row.last_calculated_at else None,
+        })
+    return {"items": items, "total": len(items)}

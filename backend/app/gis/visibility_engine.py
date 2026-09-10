@@ -73,7 +73,7 @@ def calculate_line_of_sight(
     target_elevation: float, 
     target_height: float,
     dem_service: DEMProcessor,
-    dem_file_path: str = "s3://copernicus-dem-30m/Copernicus_DSM_COG_10_N18_00_E073_00_DEM/Copernicus_DSM_COG_10_N18_00_E073_00_DEM.tif",
+    dem_file_path: str = "",  # Must be set by caller — use settings.DEM_DEFAULT_FILE or a registered tile path
     target_id: str = "target"
 ) -> VisibilityResult:
     """
